@@ -14501,6 +14501,22 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
           },
           additionalProperties: false,
         },
+        replyToMode: {
+          anyOf: [
+            {
+              type: "string",
+              const: "off",
+            },
+            {
+              type: "string",
+              const: "first",
+            },
+            {
+              type: "string",
+              const: "all",
+            },
+          ],
+        },
         accounts: {
           type: "object",
           propertyNames: {
@@ -14753,6 +14769,22 @@ export const GENERATED_BUNDLED_CHANNEL_CONFIG_METADATA = [
                   },
                 },
                 additionalProperties: false,
+              },
+              replyToMode: {
+                anyOf: [
+                  {
+                    type: "string",
+                    const: "off",
+                  },
+                  {
+                    type: "string",
+                    const: "first",
+                  },
+                  {
+                    type: "string",
+                    const: "all",
+                  },
+                ],
               },
               name: {
                 type: "string",
