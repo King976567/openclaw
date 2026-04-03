@@ -34,16 +34,23 @@ export type ProviderRequestCapability = "llm" | "audio" | "image" | "video" | "o
 export type ProviderEndpointClass =
   | "default"
   | "anthropic-public"
+  | "cerebras-public"
+  | "chutes-public"
+  | "deepseek-public"
   | "github-copilot-native"
+  | "groq-public"
   | "mistral-public"
   | "moonshot-native"
   | "modelstudio-native"
   | "openai-public"
   | "openai-codex"
   | "azure-openai"
+  | "opencode-public"
   | "openrouter"
   | "google-generative-ai"
   | "google-vertex"
+  | "xai-public"
+  | "zai-public"
   | "local"
   | "custom"
   | "invalid";
@@ -206,17 +213,38 @@ export function resolveProviderEndpoint(
   if (host === "api.mistral.ai") {
     return { endpointClass: "mistral-public", hostname: host };
   }
+  if (host === "api.cerebras.ai") {
+    return { endpointClass: "cerebras-public", hostname: host };
+  }
+  if (host === "llm.chutes.ai") {
+    return { endpointClass: "chutes-public", hostname: host };
+  }
+  if (host === "api.deepseek.com") {
+    return { endpointClass: "deepseek-public", hostname: host };
+  }
   if (host.endsWith(".githubcopilot.com")) {
     return { endpointClass: "github-copilot-native", hostname: host };
   }
+  if (host === "api.groq.com") {
+    return { endpointClass: "groq-public", hostname: host };
+  }
   if (host === "chatgpt.com") {
     return { endpointClass: "openai-codex", hostname: host };
+  }
+  if (host === "opencode.ai") {
+    return { endpointClass: "opencode-public", hostname: host };
   }
   if (host === "openrouter.ai" || host.endsWith(".openrouter.ai")) {
     return { endpointClass: "openrouter", hostname: host };
   }
   if (host.endsWith(".openai.azure.com")) {
     return { endpointClass: "azure-openai", hostname: host };
+  }
+  if (host === "api.x.ai") {
+    return { endpointClass: "xai-public", hostname: host };
+  }
+  if (host === "api.z.ai") {
+    return { endpointClass: "zai-public", hostname: host };
   }
   if (host === "generativelanguage.googleapis.com") {
     return { endpointClass: "google-generative-ai", hostname: host };
@@ -501,16 +529,23 @@ export function resolveProviderRequestCapabilities(
   const endpointClass = policy.endpointClass;
   const isKnownNativeEndpoint =
     endpointClass === "anthropic-public" ||
+    endpointClass === "cerebras-public" ||
+    endpointClass === "chutes-public" ||
+    endpointClass === "deepseek-public" ||
     endpointClass === "github-copilot-native" ||
+    endpointClass === "groq-public" ||
     endpointClass === "mistral-public" ||
     endpointClass === "moonshot-native" ||
     endpointClass === "modelstudio-native" ||
     endpointClass === "openai-public" ||
     endpointClass === "openai-codex" ||
+    endpointClass === "opencode-public" ||
     endpointClass === "azure-openai" ||
     endpointClass === "openrouter" ||
     endpointClass === "google-generative-ai" ||
-    endpointClass === "google-vertex";
+    endpointClass === "google-vertex" ||
+    endpointClass === "xai-public" ||
+    endpointClass === "zai-public";
 
   let compatibilityFamily: ProviderRequestCompatibilityFamily | undefined;
   if (provider && MOONSHOT_COMPAT_PROVIDERS.has(provider)) {

@@ -227,6 +227,37 @@ describe("provider attribution", () => {
     });
   });
 
+  it("classifies remaining OpenAI-compatible native vendor hosts centrally", () => {
+    expect(resolveProviderEndpoint("https://api.cerebras.ai/v1")).toMatchObject({
+      endpointClass: "cerebras-public",
+      hostname: "api.cerebras.ai",
+    });
+    expect(resolveProviderEndpoint("https://llm.chutes.ai/v1")).toMatchObject({
+      endpointClass: "chutes-public",
+      hostname: "llm.chutes.ai",
+    });
+    expect(resolveProviderEndpoint("https://api.deepseek.com")).toMatchObject({
+      endpointClass: "deepseek-public",
+      hostname: "api.deepseek.com",
+    });
+    expect(resolveProviderEndpoint("https://api.groq.com/openai/v1")).toMatchObject({
+      endpointClass: "groq-public",
+      hostname: "api.groq.com",
+    });
+    expect(resolveProviderEndpoint("https://opencode.ai/zen/v1")).toMatchObject({
+      endpointClass: "opencode-public",
+      hostname: "opencode.ai",
+    });
+    expect(resolveProviderEndpoint("https://api.x.ai/v1")).toMatchObject({
+      endpointClass: "xai-public",
+      hostname: "api.x.ai",
+    });
+    expect(resolveProviderEndpoint("https://api.z.ai/api/paas/v4")).toMatchObject({
+      endpointClass: "zai-public",
+      hostname: "api.z.ai",
+    });
+  });
+
   it("treats OpenRouter-hosted Responses routes as explicit proxy-like endpoints", () => {
     expect(
       resolveProviderRequestPolicy({

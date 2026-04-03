@@ -1317,7 +1317,6 @@ async function processOpenAICompletionsStream(
 
 function detectCompat(model: OpenAIModeModel) {
   const provider = model.provider;
-  const baseUrl = model.baseUrl ?? "";
   const capabilities = resolveProviderRequestCapabilities({
     provider,
     api: model.api,
@@ -1330,20 +1329,20 @@ function detectCompat(model: OpenAIModeModel) {
         ? (model.compat as { supportsStore?: boolean })
         : undefined,
   });
-  const isZai = provider === "zai" || baseUrl.includes("api.z.ai");
+  const isZai = provider === "zai" || capabilities.endpointClass === "zai-public";
   const isNonStandard =
     provider === "cerebras" ||
-    baseUrl.includes("cerebras.ai") ||
+    capabilities.endpointClass === "cerebras-public" ||
     provider === "xai" ||
-    baseUrl.includes("api.x.ai") ||
-    baseUrl.includes("chutes.ai") ||
-    baseUrl.includes("deepseek.com") ||
+    capabilities.endpointClass === "xai-public" ||
+    capabilities.endpointClass === "chutes-public" ||
+    capabilities.endpointClass === "deepseek-public" ||
     isZai ||
     provider === "opencode" ||
-    baseUrl.includes("opencode.ai");
-  const useMaxTokens = baseUrl.includes("chutes.ai");
-  const isGrok = provider === "xai" || baseUrl.includes("api.x.ai");
-  const isGroq = provider === "groq" || baseUrl.includes("groq.com");
+    capabilities.endpointClass === "opencode-public";
+  const useMaxTokens = capabilities.endpointClass === "chutes-public";
+  const isGrok = provider === "xai" || capabilities.endpointClass === "xai-public";
+  const isGroq = provider === "groq" || capabilities.endpointClass === "groq-public";
   const reasoningEffortMap: Record<string, string> =
     isGroq && model.id === "qwen/qwen3-32b"
       ? {

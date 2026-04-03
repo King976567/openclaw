@@ -253,4 +253,135 @@ describe("openai transport stream", () => {
       },
     });
   });
+
+  it("treats native xAI hosts behind custom provider ids as Grok-compatible", async () => {
+    const streamFn = buildTransportAwareSimpleStreamFn(
+      attachModelProviderRequestTransport(
+        {
+          id: "grok-4",
+          name: "Grok 4",
+          api: "openai-completions",
+          provider: "custom-xai",
+          baseUrl: "https://api.x.ai/v1",
+          reasoning: true,
+          input: ["text"],
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          contextWindow: 131072,
+          maxTokens: 8192,
+        } satisfies Model<"openai-completions">,
+        {
+          proxy: {
+            mode: "explicit-proxy",
+            url: "http://proxy.internal:8443",
+          },
+        },
+      ),
+    );
+
+    expect(streamFn).toBeTypeOf("function");
+    let capturedPayload: Record<string, unknown> | undefined;
+    let resolveCaptured!: () => void;
+    const captured = new Promise<void>((resolve) => {
+      resolveCaptured = resolve;
+    });
+
+    void streamFn!(
+      {
+        id: "grok-4",
+        name: "Grok 4",
+        api: "openclaw-openai-completions-transport",
+        provider: "custom-xai",
+        baseUrl: "https://api.x.ai/v1",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 131072,
+        maxTokens: 8192,
+      } as Model<"openclaw-openai-completions-transport">,
+      {
+        systemPrompt: "system",
+        messages: [],
+        tools: [],
+      } as never,
+      {
+        reasoningEffort: "high",
+        onPayload: async (payload) => {
+          capturedPayload = payload as Record<string, unknown>;
+          resolveCaptured();
+          return payload;
+        },
+      } as never,
+    );
+
+    await captured;
+
+    expect(capturedPayload?.reasoning_effort).toBeUndefined();
+  });
+
+  it("uses max_tokens for native Chutes hosts behind custom provider ids", async () => {
+    const streamFn = buildTransportAwareSimpleStreamFn(
+      attachModelProviderRequestTransport(
+        {
+          id: "deepseek/deepseek-r1",
+          name: "DeepSeek R1",
+          api: "openai-completions",
+          provider: "custom-chutes",
+          baseUrl: "https://llm.chutes.ai/v1",
+          reasoning: true,
+          input: ["text"],
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          contextWindow: 131072,
+          maxTokens: 8192,
+        } satisfies Model<"openai-completions">,
+        {
+          proxy: {
+            mode: "explicit-proxy",
+            url: "http://proxy.internal:8443",
+          },
+        },
+      ),
+    );
+
+    expect(streamFn).toBeTypeOf("function");
+    let capturedPayload: Record<string, unknown> | undefined;
+    let resolveCaptured!: () => void;
+    const captured = new Promise<void>((resolve) => {
+      resolveCaptured = resolve;
+    });
+
+    void streamFn!(
+      {
+        id: "deepseek/deepseek-r1",
+        name: "DeepSeek R1",
+        api: "openclaw-openai-completions-transport",
+        provider: "custom-chutes",
+        baseUrl: "https://llm.chutes.ai/v1",
+        reasoning: true,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 131072,
+        maxTokens: 8192,
+      } as Model<"openclaw-openai-completions-transport">,
+      {
+        systemPrompt: "system",
+        messages: [],
+        tools: [],
+      } as never,
+      {
+        maxTokens: 512,
+        onPayload: async (payload) => {
+          capturedPayload = payload as Record<string, unknown>;
+          resolveCaptured();
+          return payload;
+        },
+      } as never,
+    );
+
+    await captured;
+
+    expect(capturedPayload).toMatchObject({
+      max_tokens: 512,
+    });
+    expect(capturedPayload?.max_completion_tokens).toBeUndefined();
+  });
 });
