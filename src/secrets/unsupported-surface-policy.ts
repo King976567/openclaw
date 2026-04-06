@@ -1,12 +1,5 @@
-import { getBundledChannelContractSurfaces } from "../channels/plugins/contract-surfaces.js";
+import { iterateBootstrapChannelPlugins } from "../channels/plugins/bootstrap-registry.js";
 import { isRecord } from "../utils.js";
-
-type ChannelUnsupportedSecretRefSurface = {
-  unsupportedSecretRefSurfacePatterns?: readonly string[];
-  collectUnsupportedSecretRefConfigCandidates?: (
-    raw: unknown,
-  ) => UnsupportedSecretRefConfigCandidate[];
-};
 
 const CORE_UNSUPPORTED_SECRETREF_SURFACE_PATTERNS = [
   "commands.ownerDisplaySecret",
@@ -16,14 +9,12 @@ const CORE_UNSUPPORTED_SECRETREF_SURFACE_PATTERNS = [
   "auth-profiles.oauth.*",
 ] as const;
 
-function listChannelUnsupportedSecretRefSurfaces(): ChannelUnsupportedSecretRefSurface[] {
-  return getBundledChannelContractSurfaces() as ChannelUnsupportedSecretRefSurface[];
-}
-
 function collectChannelUnsupportedSecretRefSurfacePatterns(): string[] {
-  return listChannelUnsupportedSecretRefSurfaces().flatMap(
-    (surface) => surface.unsupportedSecretRefSurfacePatterns ?? [],
-  );
+  const patterns: string[] = [];
+  for (const plugin of iterateBootstrapChannelPlugins()) {
+    patterns.push(...(plugin.secrets?.unsupportedSecretRefSurfacePatterns ?? []));
+  }
+  return patterns;
 }
 
 let cachedUnsupportedSecretRefSurfacePatterns: string[] | null = null;
@@ -84,12 +75,14 @@ export function collectUnsupportedSecretRefConfigCandidates(
     }
   }
 
-  for (const surface of listChannelUnsupportedSecretRefSurfaces()) {
-    const channelCandidates = surface.collectUnsupportedSecretRefConfigCandidates?.(raw);
-    if (!channelCandidates?.length) {
-      continue;
+  if (isRecord(raw.channels)) {
+    for (const plugin of iterateBootstrapChannelPlugins()) {
+      const channelCandidates = plugin.secrets?.collectUnsupportedSecretRefConfigCandidates?.(raw);
+      if (!channelCandidates?.length) {
+        continue;
+      }
+      candidates.push(...channelCandidates);
     }
-    candidates.push(...channelCandidates);
   }
 
   return candidates;

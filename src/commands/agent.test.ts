@@ -6,7 +6,6 @@ import "../cron/isolated-agent.mocks.js";
 import { __testing as acpManagerTesting } from "../acp/control-plane/manager.js";
 import { resolveAgentDir, resolveSessionAgentId } from "../agents/agent-scope.js";
 import * as authProfilesModule from "../agents/auth-profiles.js";
-import * as cliRunnerModule from "../agents/cli-runner.js";
 import { resolveSession } from "../agents/command/session.js";
 import { loadModelCatalog } from "../agents/model-catalog.js";
 import * as modelSelectionModule from "../agents/model-selection.js";
@@ -95,7 +94,6 @@ const runtime: RuntimeEnv = {
 
 const configSpy = vi.spyOn(configModule, "loadConfig");
 const readConfigFileSnapshotForWriteSpy = vi.spyOn(configModule, "readConfigFileSnapshotForWrite");
-const runCliAgentSpy = vi.spyOn(cliRunnerModule, "runCliAgent");
 
 async function withTempHome<T>(fn: (home: string) => Promise<T>): Promise<T> {
   return withTempHomeBase(fn, { prefix: "openclaw-agent-" });
@@ -105,7 +103,6 @@ async function loadFreshAgentCommandModulesForTest() {
   vi.resetModules();
   const runEmbeddedPiAgentMock = vi.fn();
   const loadModelCatalogMock = vi.fn();
-  const isCliProviderMock = vi.fn(() => false);
   vi.doMock("../agents/pi-embedded.js", () => ({
     abortEmbeddedPiRun: vi.fn().mockReturnValue(false),
     runEmbeddedPiAgent: runEmbeddedPiAgentMock,
@@ -114,15 +111,6 @@ async function loadFreshAgentCommandModulesForTest() {
   vi.doMock("../agents/model-catalog.js", () => ({
     loadModelCatalog: loadModelCatalogMock,
   }));
-  vi.doMock("../agents/model-selection.js", async () => {
-    const actual = await vi.importActual<typeof import("../agents/model-selection.js")>(
-      "../agents/model-selection.js",
-    );
-    return {
-      ...actual,
-      isCliProvider: isCliProviderMock,
-    };
-  });
   const [agentModule, configModuleFresh, commandSecretGatewayModuleFresh] = await Promise.all([
     import("./agent.js"),
     import("../config/config.js"),
@@ -134,7 +122,6 @@ async function loadFreshAgentCommandModulesForTest() {
     commandSecretGatewayModuleFresh,
     runEmbeddedPiAgentMock,
     loadModelCatalogMock,
-    isCliProviderMock,
   };
 }
 
@@ -148,8 +135,8 @@ function mockConfig(
   const cfg = {
     agents: {
       defaults: {
-        model: { primary: "anthropic/claude-opus-4-5" },
-        models: { "anthropic/claude-opus-4-5": {} },
+        model: { primary: "anthropic/claude-opus-4-6" },
+        models: { "anthropic/claude-opus-4-6": {} },
         workspace: path.join(home, "openclaw"),
         ...agentOverrides,
       },
@@ -335,10 +322,8 @@ beforeEach(() => {
   resetPluginRuntimeStateForTest();
   acpManagerTesting.resetAcpSessionManagerForTests();
   configModule.clearRuntimeConfigSnapshot();
-  runCliAgentSpy.mockResolvedValue(createDefaultAgentResult() as never);
   vi.mocked(runEmbeddedPiAgent).mockResolvedValue(createDefaultAgentResult());
   vi.mocked(loadModelCatalog).mockResolvedValue([]);
-  vi.mocked(modelSelectionModule.isCliProvider).mockImplementation(() => false);
   readConfigFileSnapshotForWriteSpy.mockResolvedValue({
     snapshot: { valid: false, resolved: {} as OpenClawConfig },
     writeOptions: {},
@@ -354,7 +339,6 @@ describe("agentCommand", () => {
         commandSecretGatewayModuleFresh,
         runEmbeddedPiAgentMock,
         loadModelCatalogMock,
-        isCliProviderMock,
       } = await loadFreshAgentCommandModulesForTest();
       const freshConfigSpy = vi.spyOn(configModuleFresh, "loadConfig");
       const freshReadConfigFileSnapshotForWriteSpy = vi.spyOn(
@@ -367,14 +351,13 @@ describe("agentCommand", () => {
       );
       runEmbeddedPiAgentMock.mockResolvedValue(createDefaultAgentResult());
       loadModelCatalogMock.mockResolvedValue([]);
-      isCliProviderMock.mockImplementation(() => false);
 
       const store = path.join(home, "sessions.json");
       const loadedConfig = {
         agents: {
           defaults: {
-            model: { primary: "anthropic/claude-opus-4-5" },
-            models: { "anthropic/claude-opus-4-5": {} },
+            model: { primary: "anthropic/claude-opus-4-6" },
+            models: { "anthropic/claude-opus-4-6": {} },
             workspace: path.join(home, "openclaw"),
           },
         },
@@ -555,6 +538,18 @@ describe("agentCommand", () => {
     });
   });
 
+  it("creates a stable session key for explicit session-id-only runs", async () => {
+    await withTempHome(async (home) => {
+      const store = path.join(home, "sessions.json");
+      const cfg = mockConfig(home, store);
+
+      const resolution = resolveSession({ cfg, sessionId: "explicit-session-123" });
+
+      expect(resolution.sessionKey).toBe("agent:main:explicit:explicit-session-123");
+      expect(resolution.sessionId).toBe("explicit-session-123");
+    });
+  });
+
   it("uses the resumed session agent scope when sessionId resolves to another agent store", async () => {
     await withCrossAgentResumeFixture(async ({ sessionId, sessionKey, cfg }) => {
       const resolution = resolveSession({ cfg, sessionId });
@@ -709,7 +704,7 @@ describe("agentCommand", () => {
       mockConfig(home, store, {
         model: { primary: "openai/gpt-4.1-mini" },
         models: {
-          "anthropic/claude-opus-4-5": {},
+          "anthropic/claude-opus-4-6": {},
           "openai/gpt-4.1-mini": {},
         },
       });
@@ -728,26 +723,26 @@ describe("agentCommand", () => {
           sessionId: "session-subagent",
           updatedAt: Date.now(),
           providerOverride: "anthropic",
-          modelOverride: "claude-opus-4-5",
+          modelOverride: "claude-opus-4-6",
         },
       });
 
       mockConfig(home, store, {
         model: {
           primary: "openai/gpt-4.1-mini",
-          fallbacks: ["openai/gpt-5.2"],
+          fallbacks: ["openai/gpt-5.4"],
         },
         models: {
-          "anthropic/claude-opus-4-5": {},
+          "anthropic/claude-opus-4-6": {},
           "openai/gpt-4.1-mini": {},
-          "openai/gpt-5.2": {},
+          "openai/gpt-5.4": {},
         },
       });
 
       vi.mocked(loadModelCatalog).mockResolvedValueOnce([
-        { id: "claude-opus-4-5", name: "Opus", provider: "anthropic" },
+        { id: "claude-opus-4-6", name: "Opus", provider: "anthropic" },
         { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "openai" },
-        { id: "gpt-5.2", name: "GPT-5.2", provider: "openai" },
+        { id: "gpt-5.4", name: "GPT-5.2", provider: "openai" },
       ]);
       vi.mocked(runEmbeddedPiAgent)
         .mockRejectedValueOnce(Object.assign(new Error("rate limited"), { status: 429 }))
@@ -755,7 +750,7 @@ describe("agentCommand", () => {
           payloads: [{ text: "ok" }],
           meta: {
             durationMs: 5,
-            agentMeta: { sessionId: "session-subagent", provider: "openai", model: "gpt-5.2" },
+            agentMeta: { sessionId: "session-subagent", provider: "openai", model: "gpt-5.4" },
           },
         });
 
@@ -771,8 +766,8 @@ describe("agentCommand", () => {
         .mocked(runEmbeddedPiAgent)
         .mock.calls.map((call) => ({ provider: call[0]?.provider, model: call[0]?.model }));
       expect(attempts).toEqual([
-        { provider: "anthropic", model: "claude-opus-4-5" },
-        { provider: "openai", model: "gpt-5.2" },
+        { provider: "anthropic", model: "claude-opus-4-6" },
+        { provider: "openai", model: "gpt-5.4" },
       ]);
     });
   });
@@ -790,12 +785,12 @@ describe("agentCommand", () => {
       });
 
       mockConfig(home, store, {
-        model: { primary: "anthropic/claude-opus-4-5" },
+        model: { primary: "anthropic/claude-opus-4-6" },
         models: {},
       });
 
       vi.mocked(loadModelCatalog).mockResolvedValueOnce([
-        { id: "claude-opus-4-5", name: "Opus", provider: "anthropic" },
+        { id: "claude-opus-4-6", name: "Opus", provider: "anthropic" },
       ]);
 
       await runAgentWithSessionKey("agent:main:subagent:allow-any");
@@ -821,11 +816,11 @@ describe("agentCommand", () => {
           sessionId: "session-clear-overrides",
           updatedAt: Date.now(),
           providerOverride: "anthropic",
-          modelOverride: "claude-opus-4-5",
+          modelOverride: "claude-opus-4-6",
           authProfileOverride: "profile-legacy",
           authProfileOverrideSource: "user",
           authProfileOverrideCompactionCount: 2,
-          fallbackNoticeSelectedModel: "anthropic/claude-opus-4-5",
+          fallbackNoticeSelectedModel: "anthropic/claude-opus-4-6",
           fallbackNoticeActiveModel: "openai/gpt-4.1-mini",
           fallbackNoticeReason: "fallback",
         },
@@ -839,7 +834,7 @@ describe("agentCommand", () => {
       });
 
       vi.mocked(loadModelCatalog).mockResolvedValueOnce([
-        { id: "claude-opus-4-5", name: "Opus", provider: "anthropic" },
+        { id: "claude-opus-4-6", name: "Opus", provider: "anthropic" },
         { id: "gpt-4.1-mini", name: "GPT-4.1 Mini", provider: "openai" },
       ]);
 
@@ -877,7 +872,7 @@ describe("agentCommand", () => {
       const store = path.join(home, "sessions.json");
       mockConfig(home, store, {
         models: {
-          "anthropic/claude-opus-4-5": {},
+          "anthropic/claude-opus-4-6": {},
           "openai/gpt-4.1-mini": {},
         },
       });
@@ -908,7 +903,7 @@ describe("agentCommand", () => {
       const store = path.join(home, "sessions.json");
       mockConfig(home, store, {
         models: {
-          "anthropic/claude-opus-4-5": {},
+          "anthropic/claude-opus-4-6": {},
           "openai/gpt-4.1-mini": {},
         },
       });
@@ -974,7 +969,7 @@ describe("agentCommand", () => {
       });
       mockConfig(home, store, {
         models: {
-          "anthropic/claude-opus-4-5": {},
+          "anthropic/claude-opus-4-6": {},
           "openai/gpt-4.1-mini": {},
         },
       });
@@ -1088,7 +1083,7 @@ describe("agentCommand", () => {
   it("defaults thinking to low for reasoning-capable models", async () => {
     await expectDefaultThinkLevel({
       catalogEntry: {
-        id: "claude-opus-4-5",
+        id: "claude-opus-4-6",
         name: "Opus 4.5",
         provider: "anthropic",
         reasoning: true,
@@ -1118,13 +1113,13 @@ describe("agentCommand", () => {
       agentOverrides: {
         thinkingDefault: "low",
         models: {
-          "anthropic/claude-opus-4-5": {
+          "anthropic/claude-opus-4-6": {
             params: { thinking: "high" },
           },
         },
       },
       catalogEntry: {
-        id: "claude-opus-4-5",
+        id: "claude-opus-4-6",
         name: "Opus 4.5",
         provider: "anthropic",
         reasoning: true,
